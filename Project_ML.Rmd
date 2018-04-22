@@ -1,0 +1,120 @@
+---
+title: "PracticalML_project20180422"
+output: html_document
+---
+
+## Loading the libraries
+```{r Loading the libraries}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(corrplot)
+library(RColorBrewer)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+```
+
+## Loading datas
+```{r loading}
+train_data <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))
+test_data <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+```
+
+
+
+## Explore data
+```{r Explore data}
+head(train_data)
+summary(train_data)
+dim(train_data) 
+str(train_data)
+
+#head(test_data)
+#summary(test_data)
+#dim(test_data)
+#str(test_data)
+```
+
+## Clean data
+```{r Cleaning data}
+train_data <- train_data[,colSums(is.na(train_data))==0]
+test_data <- test_data[,colSums(is.na(test_data))==0]
+
+#removing variables that aren't needed 
+train_data <- train_data[, -c(1:7)]
+test_data <- test_data[, -c(1:7)]
+dim(train_data)
+```
+
+
+## Setting seed for reproducibility and data partionning: 70% of the training set and 30% of the testing set
+```{r seed}
+set.seed(4321)
+train70pct_data <- createDataPartition(y=train_data$classe, p=0.70, list=FALSE)
+train <- train_data[train70pct_data, ]
+valide <- train_data[-train70pct_data, ]
+rm(train70pct_data)
+dim(train)
+dim(valide)
+```
+
+## 1. Random forest model
+```{r Random forest}
+# Random forest technique
+randomforest_model <- randomForest(classe ~. , data=train, method="class")
+print(randomforest_model) 
+
+#Prediction
+randomforest_prediction <- predict(randomforest_model, valide, type="class")
+
+
+#Validate
+randomforest_valide <- confusionMatrix(randomforest_prediction, valide$classe)
+randomforest_valide
+
+randomforest_accuracy <- postResample(randomforest_prediction, valide$classe)
+randomforest_accuracy
+```
+
+
+## 2. Decision tree model
+```{r Decision tree}
+# Decision tree technique
+decisiontree_model <- rpart(classe ~ ., data=train, method="class")
+
+decisiontree_prediction <- predict(decisiontree_model, valide, type="class")
+
+decisiontree_valide  <- confusionMatrix(valide$classe, decisiontree_prediction)
+decisiontree_valide
+
+decisiontree_accuracy <- postResample(decisiontree_prediction, valide$classe)
+decisiontree_accuracy
+
+
+# Plot the Decision Tree
+decisiontree_plot <- rpart.plot(decisiontree_model, 
+                                main="Decision tree", 
+                                extra=100, 
+                                under=TRUE, 
+                                faclen=0)
+```
+
+
+## With a 95% confidence level, the random forest has a confidence interval of  (0.9994, 1)
+## and with the same confidence level, the decision tree has a confidence interval of (0.9988, 1). 
+## Hence, at a 95% confidence level, the random forest will be chosen as a better model.
+```{r Final decision}
+bettermodel_95cl <- predict(randomforest_model, test_data, type="class")
+bettermodel_95cl
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(bettermodel_95cl)
+```
